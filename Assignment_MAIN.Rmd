@@ -1,0 +1,126 @@
+---
+title: "Assignment 1: Analyzing an Obesity dataset"
+author: William Schaafsma, Hau Nguyen, Qingyu Meng
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+       highlight: textmate
+       theme: flatly
+       number_sections: TRUE
+       toc: TRUE
+       toc_float:
+         collapsed: TRUE
+         smooth_scroll: FALSE
+---
+
+# Introduction and Research Question
+
+- explain what we are going to do in the assignment
+- explain the variables
+- present research question
+
+# Packages
+
+The following libraries are required to run this program succesfully.
+```{r libraries, warning = FALSE, message = FALSE}
+library(ggplot2)
+library(corrplot)
+library(dplyr)
+library(knitr)
+library(tidyverse)
+library(mice)
+library(magrittr)
+library(readr)
+library(caret)
+```
+
+
+# Loading the dataset & set seed
+
+First we load the data and set the seed in order to generate a reproducible result.
+
+```{r, message=FALSE}
+# loading data
+obese <- read_csv("ObesityDataSet_raw_and_data_sinthetic (2)/ObesityDataSet_raw_and_data_sinthetic.csv")
+
+# set the seed
+set.seed(1705)
+```
+
+# Processing of the data
+
+We want to include BMI as a dependent variable in our model. Thus we have to derive BMI from Weight and Height with the formula:  $BMI = Weight / Height^2$
+
+```{r, message=FALSE, }
+# calculating bmi from height and weight
+Bmi <- data.frame(Bmi = (obese$Weight / (obese$Height^2)))
+
+# adding bmi to the original dataframe
+obese_complete <- cbind(obese, Bmi)
+```
+
+
+# Splitting the data into train, validation & test
+
+In order to evaluate the performance of the model we will build later on, we have to split the data into three partitions: Train, Test, Validation. The data will be split in a way that ~70% of the data is used for training the model, ~20% for validating the model and ~10% for testing the model.
+
+```{r, message=FALSE}
+# partition of training
+part_train <- createDataPartition(obese_complete$Bmi, p = .7, 
+                                  list = FALSE, 
+                                  times = 1)
+
+# creation of training data
+obese_train <- obese_complete[part_train,]
+
+# remainder for validation and testing
+part_test_val <- obese_complete[-part_train,]
+
+# partition of validation
+part_val <- createDataPartition(part_test_val$Bmi, p = .66, 
+                                  list = FALSE, 
+                                  times = 1)
+# creation of validation data
+obese_val <- part_test_val[part_val,]
+
+# creation of test data
+obese_test  <- part_test_val[-part_val,]
+```
+
+
+# Getting to know the data
+
+In order to work with a dataset, we need to understand the dataset. First, let's check wether there are missing data in our dataset. To do this we use the `mice` package.
+
+```{r, message=FALSE}
+md.pattern(obese_complete)
+```
+
+Fortunately, we can conclude that our dataset contains no missing values. Furthermore, the figure shows that our dataset holds 18 variables and 2111 observations. 
+
+Now, let us see the head of the dataset.
+
+```{r head}
+head(obese_complete) %>% 
+  knitr::kable(format = "markdown", digits= 1, padding = 30, align = 'c')
+```
+
+
+
+# Correlations
+
+# Model training
+
+# Best model selection & model comparison
+
+# Model evaluation & VIF
+
+# Checking assumptions
+
+# Visualizations
+
+# Answering research question
+
+# Discussion & Limitations
+
+# Sources
