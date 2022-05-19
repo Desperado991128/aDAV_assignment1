@@ -34,6 +34,7 @@ library(mice)
 library(magrittr)
 library(readr)
 library(caret)
+library(leaps)
 ```
 
 
@@ -58,9 +59,11 @@ We want to include BMI as a dependent variable in our model. Thus we have to der
 Bmi <- data.frame(Bmi = (obese$Weight / (obese$Height^2)))
 
 # adding bmi to the original dataframe
-obese_complete <- cbind(obese, Bmi)
-```
+obese_mid <- cbind(obese, Bmi)
 
+# removing *NObeyesdad* since we don't need the variable
+obese_complete <- select(obese_mid, -NObeyesdad)
+```
 
 # Splitting the data into train, validation & test
 
@@ -91,16 +94,40 @@ obese_test  <- part_test_val[-part_val,]
 
 # Explaining the variables
 
-In this section, an elaboration on the variables is given. For starters, the categorical variable *Gender* consists of two categories representing one's gender: male or female.
+**WARNING:** the simulated data created incorrect data. Particularly, it treated categorical data as numeric data and therefore wrongfully imputed these data. However, in this assignment we will treat these data as if they were numeric since converting the datatypes causes loads of parsing errors. This problem affects the following variables: *FCVC, NCP, CH2O, FAF* and *TUE*.
 
-Next is the continuous variable *Age* that only contains integers of every person's age. 
 
-Thenthe continuous variable *Height* that contains floating values for a person's Height, measured in meters.
+In this section, an elaboration on the variables is given. For starters, the categorical variable **Gender** consists of two categories representing one's gender: male or female.
 
-Then there's another continuous variable *Weight* that also contains floating values for a person's weight, measured in Kilograms (KG).
+Next is the continuous variable **Age** that only contains integers of every person's age. 
 
-**Further work on this!!!** 
+Then the continuous variable **Height** that contains floating values for a person's Height, measured in meters.
 
+Then there's another continuous variable **Weight** that also contains floating values for a person's weight, measured in Kilograms (KG).
+
+There's also the dichotomous variable **family_history_with_overweight** which controls for possible genetic predisposition for a high BMI. 
+
+Next is another dichotomous variable **FAVC** that represents whether a person frequently consumes high caloric foods.
+
+Then a "numeric" variable **FCVC** which represents the frequency of consuming vegetables. 
+
+Then there's another "numeric" variable **NCP** that accounts for the number of main meals each day.
+
+Next is the categorical variable **CAEC** consisting of four categories representing the consumption of foods between meals: No, Sometimes, Frequently, Always.
+
+Then there is a dichotomous variable **SMOKE** that represents whether a person smokes
+
+Next is a "numeric" variable **CH2O** which represents the amount of water a person drinks each day.
+
+Next is another dichotomous variable **SCC** that accounts for calorie checking.
+
+Then there's a "numeric" variable **FAF** which represents the frequency of physical activity of a person.
+
+Next is another "numeric" variable **TUE** which represents the amount a person spends on it's devices such as a phone.
+
+Then there is the categorical variable **CALC** consisting of four categories representing a person's alcohol intake: Nothing, Sometimes, Frequently, Always. 
+
+Finally, there is the categorical variable **MTRANS** consisting of five categories representing a person's most used public transport: Automobile, Motorbike, Bike, Public Transportation and Walking.
 
 
 # Getting to know the data
@@ -111,7 +138,7 @@ In order to work with a dataset, we need to understand the dataset. First, let's
 md.pattern(obese_complete)
 ```
 
-Fortunately, we can conclude that our dataset contains no missing values. Furthermore, the figure shows that our dataset holds 18 variables and 2111 observations. 
+Fortunately, we can conclude that our dataset contains no missing values. Furthermore, the figure shows that our dataset holds 17 variables and 2111 observations. 
 
 Now, let us see the head and the summary of the dataset
 
@@ -123,13 +150,40 @@ head(obese_complete) %>%
 ```{r}
 summary(obese_complete)
 ```
-
+From the head and summary function we can tell that the data has loaded as expected and that the datatypes are in line with how we described them in section **"Explaining the variables"**. 
 
 # Correlations
 
+In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. Acknowledging the fact for BMI being a derived variable, we will not take *Height* and *Weight* into consideration since this will cause high levels of multicollinearity. 
+
+
+
 # Model training
 
+For the sake of model training we will start by a simple linear model that contains just one predictor. In this case we will pick the variable *Age*.
+
+```{r}
+model_1 <- lm(Bmi ~ Age, data = obese_train)
+summary(model_1)
+```
+```{r}
+model_2 <- lm(Bmi ~ Age + CALC + FAVC + family_history_with_overweight, data = obese_train)
+summary(model_2)
+```
+
+
 # Best model selection & model comparison
+
+Building a model by trial and error takes a lot of time and working memory. It's best to build a model based on some algorithm. For example we can use *forward selection*. This method start with no predictors and then iteratively adds contributive predictors untill there's no significant improvement.
+
+```{r}
+# start building a model by forward selection
+model_forward <- regsubsets(Bmi ~., data = obese_train, 
+                                 method = "forward")
+
+summary(model_forward)
+```
+
 
 # Model evaluation & VIF
 
