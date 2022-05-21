@@ -246,7 +246,7 @@ div.tocify {
 
 <h1 class="title toc-ignore">Assignment 1: Analyzing an Obesity dataset</h1>
 <h4 class="author">William Schaafsma, Hau Nguyen, Qingyu Meng</h4>
-<h4 class="date">18 mei, 2022</h4>
+<h4 class="date">19 mei, 2022</h4>
 
 </div>
 
@@ -268,7 +268,8 @@ library(tidyverse)
 library(mice)
 library(magrittr)
 library(readr)
-library(caret)</code></pre>
+library(caret)
+library(leaps)</code></pre>
 </div>
 <div id="loading-the-dataset-set-seed" class="section level1" number="3">
 <h1><span class="header-section-number">3</span> Loading the dataset &amp; set seed</h1>
@@ -554,13 +555,129 @@ obese_test  &lt;- part_test_val[-part_val,]</code></pre>
 </div>
 <div id="correlations" class="section level1" number="8">
 <h1><span class="header-section-number">8</span> Correlations</h1>
-<p>In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. Acknowledging the fact for BMI being a derived variable, we will not take <em>Height</em> and <em>Weight</em></p>
+<p>In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. Acknowledging the fact for BMI being a derived variable, we will not take <em>Height</em> and <em>Weight</em> into consideration since this will cause high levels of multicollinearity.</p>
 </div>
 <div id="model-training" class="section level1" number="9">
 <h1><span class="header-section-number">9</span> Model training</h1>
+<p>For the sake of model training we will start by a simple linear model that contains just one predictor. In this case we will pick the variable <em>Age</em>.</p>
+<pre class="r"><code>model_1 &lt;- lm(Bmi ~ Age, data = obese_train)
+summary(model_1)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = Bmi ~ Age, data = obese_train)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -17.896  -5.743  -1.321   5.362  22.118 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept) 22.37868    0.79788  28.048   &lt;2e-16 ***
+## Age          0.29990    0.03173   9.451   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 7.736 on 1477 degrees of freedom
+## Multiple R-squared:  0.05703,    Adjusted R-squared:  0.05639 
+## F-statistic: 89.32 on 1 and 1477 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>model_2 &lt;- lm(Bmi ~ Age + CALC + FAVC + family_history_with_overweight, data = obese_train)
+summary(model_2)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = Bmi ~ Age + CALC + FAVC + family_history_with_overweight, 
+##     data = obese_train)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -18.1642  -5.1759   0.1674   4.3681  18.4330 
+## 
+## Coefficients:
+##                                    Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                       12.779468   1.232636  10.368  &lt; 2e-16 ***
+## Age                                0.182535   0.027588   6.617 5.13e-11 ***
+## CALCno                             0.009857   0.973645   0.010    0.992    
+## CALCSometimes                      3.962379   0.946900   4.185 3.03e-05 ***
+## FAVCyes                            2.948743   0.538744   5.473 5.18e-08 ***
+## family_history_with_overweightyes  8.844645   0.462948  19.105  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 6.565 on 1473 degrees of freedom
+## Multiple R-squared:  0.3226, Adjusted R-squared:  0.3203 
+## F-statistic: 140.3 on 5 and 1473 DF,  p-value: &lt; 2.2e-16</code></pre>
 </div>
 <div id="best-model-selection-model-comparison" class="section level1" number="10">
 <h1><span class="header-section-number">10</span> Best model selection &amp; model comparison</h1>
+<p>Building a model by trial and error takes a lot of time and working memory. It’s best to build a model based on some algorithm. For example we can use <em>forward selection</em>. This method start with no predictors and then iteratively adds contributive predictors untill there’s no significant improvement.</p>
+<pre class="r"><code># start building a model by forward selection
+model_forward &lt;- regsubsets(Bmi ~., data = obese_train, 
+                                 method = &quot;forward&quot;)
+
+summary(model_forward)</code></pre>
+<pre><code>## Subset selection object
+## Call: regsubsets.formula(Bmi ~ ., data = obese_train, method = &quot;forward&quot;)
+## 22 Variables  (and intercept)
+##                                   Forced in Forced out
+## GenderMale                            FALSE      FALSE
+## Age                                   FALSE      FALSE
+## Height                                FALSE      FALSE
+## Weight                                FALSE      FALSE
+## family_history_with_overweightyes     FALSE      FALSE
+## FAVCyes                               FALSE      FALSE
+## FCVC                                  FALSE      FALSE
+## NCP                                   FALSE      FALSE
+## CAECFrequently                        FALSE      FALSE
+## CAECno                                FALSE      FALSE
+## CAECSometimes                         FALSE      FALSE
+## SMOKEyes                              FALSE      FALSE
+## CH2O                                  FALSE      FALSE
+## SCCyes                                FALSE      FALSE
+## FAF                                   FALSE      FALSE
+## TUE                                   FALSE      FALSE
+## CALCno                                FALSE      FALSE
+## CALCSometimes                         FALSE      FALSE
+## MTRANSBike                            FALSE      FALSE
+## MTRANSMotorbike                       FALSE      FALSE
+## MTRANSPublic_Transportation           FALSE      FALSE
+## MTRANSWalking                         FALSE      FALSE
+## 1 subsets of each size up to 8
+## Selection Algorithm: forward
+##          GenderMale Age Height Weight family_history_with_overweightyes FAVCyes
+## 1  ( 1 ) &quot; &quot;        &quot; &quot; &quot; &quot;    &quot;*&quot;    &quot; &quot;                               &quot; &quot;    
+## 2  ( 1 ) &quot; &quot;        &quot; &quot; &quot;*&quot;    &quot;*&quot;    &quot; &quot;                               &quot; &quot;    
+## 3  ( 1 ) &quot; &quot;        &quot; &quot; &quot;*&quot;    &quot;*&quot;    &quot;*&quot;                               &quot; &quot;    
+## 4  ( 1 ) &quot; &quot;        &quot; &quot; &quot;*&quot;    &quot;*&quot;    &quot;*&quot;                               &quot; &quot;    
+## 5  ( 1 ) &quot; &quot;        &quot; &quot; &quot;*&quot;    &quot;*&quot;    &quot;*&quot;                               &quot; &quot;    
+## 6  ( 1 ) &quot; &quot;        &quot; &quot; &quot;*&quot;    &quot;*&quot;    &quot;*&quot;                               &quot; &quot;    
+## 7  ( 1 ) &quot; &quot;        &quot; &quot; &quot;*&quot;    &quot;*&quot;    &quot;*&quot;                               &quot;*&quot;    
+## 8  ( 1 ) &quot; &quot;        &quot; &quot; &quot;*&quot;    &quot;*&quot;    &quot;*&quot;                               &quot;*&quot;    
+##          FCVC NCP CAECFrequently CAECno CAECSometimes SMOKEyes CH2O SCCyes FAF
+## 1  ( 1 ) &quot; &quot;  &quot; &quot; &quot; &quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+## 2  ( 1 ) &quot; &quot;  &quot; &quot; &quot; &quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+## 3  ( 1 ) &quot; &quot;  &quot; &quot; &quot; &quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+## 4  ( 1 ) &quot; &quot;  &quot; &quot; &quot;*&quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+## 5  ( 1 ) &quot; &quot;  &quot;*&quot; &quot;*&quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+## 6  ( 1 ) &quot;*&quot;  &quot;*&quot; &quot;*&quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+## 7  ( 1 ) &quot;*&quot;  &quot;*&quot; &quot;*&quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+## 8  ( 1 ) &quot;*&quot;  &quot;*&quot; &quot;*&quot;            &quot; &quot;    &quot; &quot;           &quot; &quot;      &quot; &quot;  &quot; &quot;    &quot; &quot;
+##          TUE CALCno CALCSometimes MTRANSBike MTRANSMotorbike
+## 1  ( 1 ) &quot; &quot; &quot; &quot;    &quot; &quot;           &quot; &quot;        &quot; &quot;            
+## 2  ( 1 ) &quot; &quot; &quot; &quot;    &quot; &quot;           &quot; &quot;        &quot; &quot;            
+## 3  ( 1 ) &quot; &quot; &quot; &quot;    &quot; &quot;           &quot; &quot;        &quot; &quot;            
+## 4  ( 1 ) &quot; &quot; &quot; &quot;    &quot; &quot;           &quot; &quot;        &quot; &quot;            
+## 5  ( 1 ) &quot; &quot; &quot; &quot;    &quot; &quot;           &quot; &quot;        &quot; &quot;            
+## 6  ( 1 ) &quot; &quot; &quot; &quot;    &quot; &quot;           &quot; &quot;        &quot; &quot;            
+## 7  ( 1 ) &quot; &quot; &quot; &quot;    &quot; &quot;           &quot; &quot;        &quot; &quot;            
+## 8  ( 1 ) &quot; &quot; &quot; &quot;    &quot;*&quot;           &quot; &quot;        &quot; &quot;            
+##          MTRANSPublic_Transportation MTRANSWalking
+## 1  ( 1 ) &quot; &quot;                         &quot; &quot;          
+## 2  ( 1 ) &quot; &quot;                         &quot; &quot;          
+## 3  ( 1 ) &quot; &quot;                         &quot; &quot;          
+## 4  ( 1 ) &quot; &quot;                         &quot; &quot;          
+## 5  ( 1 ) &quot; &quot;                         &quot; &quot;          
+## 6  ( 1 ) &quot; &quot;                         &quot; &quot;          
+## 7  ( 1 ) &quot; &quot;                         &quot; &quot;          
+## 8  ( 1 ) &quot; &quot;                         &quot; &quot;</code></pre>
 </div>
 <div id="model-evaluation-vif" class="section level1" number="11">
 <h1><span class="header-section-number">11</span> Model evaluation &amp; VIF</h1>

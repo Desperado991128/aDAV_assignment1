@@ -13,7 +13,7 @@ output:
          smooth_scroll: FALSE
 ---
 
-# Introduction and Research Question
+# Introduction And Research Question
 
 In this assignment an obesity dataset, retrieved from [Palechor & Manotas, 2019](https://www-sciencedirect-com.proxy.library.uu.nl/science/article/pii/S2352340919306985?via%3Dihub) will be analyzed. The data gathered for this paper comes from individuals that live in Peru, Mexico and Colombia. It's stated that 23% of the data is "real" and that 77% has been synthetically generated.
 
@@ -35,10 +35,11 @@ library(magrittr)
 library(readr)
 library(caret)
 library(leaps)
+library(glmnet)
 ```
 
 
-# Loading the dataset & set seed
+# Loading The Dataset & Set Seed
 
 First we load the data and set the seed in order to generate a reproducible result.
 
@@ -50,9 +51,11 @@ obese <- read_csv("ObesityDataSet_raw_and_data_sinthetic (2)/ObesityDataSet_raw_
 set.seed(1705)
 ```
 
-# Processing of the data
+# Processing Of The Data
 
 We want to include BMI as a dependent variable in our model. Thus we have to derive BMI from Weight and Height with the formula:  $BMI = Weight / Height^2$
+
+Since we use BMI as the dependent variable, high multicollinearity problems will evolve in *Height* and *Weight* for example in building a model or correlations. Therefore we will delete these predictors since they've become irrelevant.
 
 ```{r, message=FALSE, }
 # calculating bmi from height and weight
@@ -62,10 +65,10 @@ Bmi <- data.frame(Bmi = (obese$Weight / (obese$Height^2)))
 obese_mid <- cbind(obese, Bmi)
 
 # removing *NObeyesdad* since we don't need the variable
-obese_complete <- select(obese_mid, -NObeyesdad)
+obese_complete <- select(obese_mid, -c(NObeyesdad, Height, Weight))
 ```
 
-# Splitting the data into train, validation & test
+# Splitting The Data Into Train, Validation & Test
 
 In order to evaluate the performance of the model we will build later on, we have to split the data into three partitions: Train, Test, Validation. The data will be split in a way that ~70% of the data is used for training the model, ~20% for validating the model and ~10% for testing the model.
 
@@ -92,7 +95,7 @@ obese_val <- part_test_val[part_val,]
 obese_test  <- part_test_val[-part_val,]
 ```
 
-# Explaining the variables
+# Explaining The Variables
 
 **WARNING:** the simulated data created incorrect data. Particularly, it treated categorical data as numeric data and therefore wrongfully imputed these data. However, in this assignment we will treat these data as if they were numeric since converting the datatypes causes loads of parsing errors. This problem affects the following variables: *FCVC, NCP, CH2O, FAF* and *TUE*.
 
@@ -130,7 +133,7 @@ Then there is the categorical variable **CALC** consisting of four categories re
 Finally, there is the categorical variable **MTRANS** consisting of five categories representing a person's most used public transport: Automobile, Motorbike, Bike, Public Transportation and Walking.
 
 
-# Getting to know the data
+# Getting To Know The Data
 
 In order to work with a dataset, we need to understand the dataset. First, let's check wether there are missing data in our dataset. To do this we use the `mice` package.
 
@@ -154,27 +157,39 @@ From the head and summary function we can tell that the data has loaded as expec
 
 # Correlations
 
-In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. Acknowledging the fact for BMI being a derived variable, we will not take *Height* and *Weight* into consideration since this will cause high levels of multicollinearity. 
+In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. 
+
+**NEEDS FULL WORK, E.G. VISUALIZATIONS OF CORRELATIONS**
 
 
+# Model Training
 
-# Model training
-
-For the sake of model training we will start by a simple linear model that contains just one predictor. In this case we will pick the variable *Age*.
+Building a model by trial and error takes a lot of time and working memory. It's best to build a model based on some algorithm. First let's prove this first statement. The following piece of code will calculate the number of possible models given the fact that we would like a model with at least 4 predicting variables.
 
 ```{r}
-model_1 <- lm(Bmi ~ Age, data = obese_train)
-summary(model_1)
+# load a necessary source
+source("generate_formulas.R")
 ```
+
 ```{r}
-model_2 <- lm(Bmi ~ Age + CALC + FAVC + family_history_with_overweight, data = obese_train)
-summary(model_2)
+# create a vector for all predicting variables except the dependent variable bmi
+
+x_vars <- colnames(obese_complete)
+x_vars <- x_vars[x_vars != "Bmi"]
+
+# calculate the number of possible models
+
+n_possible_models <- generate_formulas(p=4, x_vars = x_vars, y_var = "Bmi") 
+length(n_possible_models)
 ```
 
+Given the assumption for a model containing 4 predicting variables, there are 1001 possible models. Thus, let's look at algorithms that calculate the "best model".
 
-# Best model selection & model comparison
+## Forward Stepwise Selection
 
-Building a model by trial and error takes a lot of time and working memory. It's best to build a model based on some algorithm. For example we can use *forward selection*. This method start with no predictors and then iteratively adds contributive predictors untill there's no significant improvement.
+For example we can use *forward selection*. This method start with no predictors and then iteratively adds the most contributive predictors until there's no significant improvement. 
+**MORE EXPLANATION ABOUT FORWARD SELECTION**
+
 
 ```{r}
 # start building a model by forward selection
@@ -183,15 +198,53 @@ model_forward <- regsubsets(Bmi ~., data = obese_train,
 
 summary(model_forward)
 ```
+## Backward Stepwise Selection
+
+Then there is also *backward selection* this method is the complete opposite of *forward selection*. Here the algorithm starts with the complete model and then iteratively starts eliminating the least significant variables until all significant variables remain.
+**MORE EXPLANATION ABOUT BACKWARD SELECTION**
+
+```{r}
+model_backward <- regsubsets(Bmi ~., data = obese_train, 
+                                 method = "backward")
+
+summary(model_forward)
+```
+## LASSO Regression; step-by-step
+
+The final method provided in this assignment is the LASSO regression method. The Least Absolute Shrinkage and Selection Operator is a powerful method since it can handle very large data sets. Furthermore this method avoids overfitting.
+**MORE EXPLANATION ABOUT LASSO**
+
+```{r}
+# set up basics for lasso regression
+pred_variables <- model.matrix(Bmi~., bind_rows(obese_train, obese_val))[, -1]
+
+# find the best lambda for lasso
+
+cv <- cv.glmnet(x = pred_variables, y = c(obese_train$Bmi, obese_val$Bmi), nfolds = 15)
+
+best_lambda <- cv$lambda.min
 
 
-# Model evaluation & VIF
+# train the lasso model
 
-# Checking assumptions
+model_lasso <- glmnet(pred_variables, c(obese_train$Bmi, obese_val$Bmi),
+                      alpha = 1, lambda = best_lambda)
+
+coef(model_lasso)
+
+```
+
+
+## Dummy Coding
+**needs explanation**
+
+# Model Evaluation & VIF
+
+# Checking Assumptions
 
 # Visualizations
 
-# Answering research question
+# Answering Research Question
 
 # Discussion & Limitations
 
