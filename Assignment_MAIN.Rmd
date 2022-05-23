@@ -17,14 +17,15 @@ output:
 
 In this assignment an obesity dataset, retrieved from [Palechor & Manotas, 2019](https://www-sciencedirect-com.proxy.library.uu.nl/science/article/pii/S2352340919306985?via%3Dihub) will be analyzed. The data gathered for this paper comes from individuals that live in Peru, Mexico and Colombia. It's stated that 23% of the data is "real" and that 77% has been synthetically generated.
 
-The goal for this assignment is to build a model that most accurately predicts the BMI of *new* patients. Understanding which predictors have great influence for one's BMI is favorable for policymakers regarding national health. Moreover, patients get more understanding of their own health.
+The goal for this assignment is to build a linear model that most accurately predicts the BMI of *new* patients, therefore we mainly focus on prediction. However, from the inference perspective, understanding which predictors have great influence for one's BMI is favorable for policymakers regarding national health. Moreover, patients will get more understanding of their own health.
 
-We will work in an exploratory manner. Thus, in this assignment we are particularly interested in: 'What predictors show the greatest influence regarding a person's BMI?'
+We will work in an exploratory manner. Thus, in this assignment we are particularly interested in: *'What predictors show the greatest influence regarding a person's BMI?'*
 
-# Packages
+# Loading packages
 
 The following libraries are required to run this program succesfully.
-```{r libraries, warning = FALSE, message = FALSE}
+
+```{r libraries, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(corrplot)
 library(dplyr)
@@ -36,6 +37,7 @@ library(readr)
 library(caret)
 library(leaps)
 library(glmnet)
+library(psych)
 ```
 
 
@@ -43,7 +45,7 @@ library(glmnet)
 
 First we load the data and set the seed in order to generate a reproducible result.
 
-```{r, message=FALSE}
+```{r message=FALSE}
 # loading data
 obese <- read_csv("ObesityDataSet_raw_and_data_sinthetic (2)/ObesityDataSet_raw_and_data_sinthetic.csv")
 
@@ -53,20 +55,66 @@ set.seed(1705)
 
 # Processing Of The Data
 
-We want to include BMI as a dependent variable in our model. Thus we have to derive BMI from Weight and Height with the formula:  $BMI = Weight / Height^2$
+We want to include BMI as a dependent variable in our model, but we only have the 'Weight' and 'Height' columns in hand. To do this we need to derive BMI from Weight and Height with the formula:  $BMI = Weight / Height^2$
 
-Since we use BMI as the dependent variable, high multicollinearity problems will evolve in *Height* and *Weight* for example in building a model or correlations. Therefore we will delete these predictors since they've become irrelevant.
+Since we use BMI as the dependent variable, high multicollinearity problems will evolve in *Height* and *Weight* for example in building a model or evaluating their correlations. Therefore we will delete these predictors since they've become irrelevant after the introduction of the BMI variable. Furthermore, the 'NObeyesdad' column concerns body weight grouping, since we will not involve in a classification task in this project, this column is never in use and we can directly delete it.
 
-```{r, message=FALSE, }
-# calculating bmi from height and weight
+```{r, message=FALSE}
+# calculating BMI from height and weight
 Bmi <- data.frame(Bmi = (obese$Weight / (obese$Height^2)))
 
-# adding bmi to the original dataframe
+# adding BMI to the original dataframe
 obese_mid <- cbind(obese, Bmi)
 
 # removing *NObeyesdad* since we don't need the variable
 obese_complete <- select(obese_mid, -c(NObeyesdad, Height, Weight))
 ```
+
+
+Our dataset contains several categorical variables, as we will perform some analyses on the variables soon, all the variables will be transformed into numeric variables. This is only for analysis purposes, and all those that are altered will be transformed to a categorical variable again afterwards if necessary.
+
+```{r}
+# If a person is male in gender, the new will be 1 (otherwise 0). 
+obese_complete$Gender <- ifelse(obese_complete$Gender == "Male", 1, 0)
+
+# If a person's family history with overweight, the new will be 1 (otherwise 0).
+obese_complete$family_history_with_overweight <- ifelse(obese_complete$family_history_with_overweight == "yes", 1, 0)
+
+# Same applies to FAVC, SMOKE and SCC
+obese_complete$FAVC <- ifelse(obese_complete$FAVC == "yes", 1, 0)
+obese_complete$SMOKE <- ifelse(obese_complete$SMOKE == "yes", 1, 0)
+obese_complete$SCC <- ifelse(obese_complete$SCC == "yes", 1, 0)
+
+# Treating CAEC, CALC and MTRANS columns
+obese_complete$CAEC <- case_when(
+  obese_complete$CAEC == "no" ~ "0",
+  obese_complete$CAEC == "Sometimes" ~ "1",
+  obese_complete$CAEC == "Frequently" ~ "2",
+  obese_complete$CAEC == "Always" ~ "3"
+)
+
+obese_complete$CALC <- case_when(
+  obese_complete$CALC == "no" ~ "0",
+  obese_complete$CALC == "Sometimes" ~ "1",
+  obese_complete$CALC == "Frequently" ~ "2",
+  obese_complete$CALC == "Always" ~ "3"
+)
+
+obese_complete$MTRANS <- case_when(
+  obese_complete$MTRANS == "Walking" ~ "0",
+  obese_complete$MTRANS == "Public_Transportation" ~ "1",
+  obese_complete$MTRANS == "Bike" ~ "2",
+  obese_complete$MTRANS == "Motorbike" ~ "3",
+  obese_complete$MTRANS == "Automobile" ~ "4"
+)
+
+view(obese_complete)
+```
+
+```{r}
+obese_complete_numeric <- data.frame(lapply(obese_complete, as.numeric))  
+```
+
 
 # Splitting The Data Into Train, Validation & Test
 
@@ -74,25 +122,25 @@ In order to evaluate the performance of the model we will build later on, we hav
 
 ```{r, message=FALSE}
 # partition of training
-part_train <- createDataPartition(obese_complete$Bmi, p = .7, 
+part_train <- createDataPartition(obese_complete_numeric$Bmi, p = .7, 
                                   list = FALSE, 
                                   times = 1)
 
 # creation of training data
-obese_train <- obese_complete[part_train,]
+obese_train <- obese_complete_numeric[part_train, ]
 
 # remainder for validation and testing
-part_test_val <- obese_complete[-part_train,]
+part_test_val <- obese_complete_numeric[-part_train, ]
 
 # partition of validation
 part_val <- createDataPartition(part_test_val$Bmi, p = .66, 
                                   list = FALSE, 
                                   times = 1)
 # creation of validation data
-obese_val <- part_test_val[part_val,]
+obese_val <- part_test_val[part_val, ]
 
 # creation of test data
-obese_test  <- part_test_val[-part_val,]
+obese_test  <- part_test_val[-part_val, ]
 ```
 
 # Explaining The Variables
@@ -104,7 +152,7 @@ In this section, an elaboration on the variables is given. For starters, the cat
 
 Next is the continuous variable **Age** that only contains integers of every person's age. 
 
-Then the continuous variable **Height** that contains floating values for a person's Height, measured in meters.
+Then the continuous variable **Height** that contains floating values for a person's height, measured in meters.
 
 Then there's another continuous variable **Weight** that also contains floating values for a person's weight, measured in Kilograms (KG).
 
@@ -137,29 +185,91 @@ Finally, there is the categorical variable **MTRANS** consisting of five categor
 
 In order to work with a dataset, we need to understand the dataset. First, let's check wether there are missing data in our dataset. To do this we use the `mice` package.
 
-```{r, message=FALSE}
-md.pattern(obese_complete)
+```{r, message=FALSE, comment=NA}
+md.pattern(obese_complete_numeric, rotate.names = TRUE)
 ```
 
-Fortunately, we can conclude that our dataset contains no missing values. Furthermore, the figure shows that our dataset holds 17 variables and 2111 observations. 
+Fortunately, we can conclude that our dataset contains no missing values. Furthermore, the figure shows that our dataset holds 15 variables and 2111 observations. 
 
-Now, let us see the head and the summary of the dataset
+Now, let us see the head and the summary of the dataset.
 
 ```{r head}
-head(obese_complete) %>% 
+head(obese_complete_numeric) %>% 
   knitr::kable(format = "markdown", digits= 1, padding = 30, align = 'c')
 ```
 
-```{r}
-summary(obese_complete)
+```{r, comment=NA}
+summary(obese_complete_numeric)
 ```
 From the head and summary function we can tell that the data has loaded as expected and that the datatypes are in line with how we described them in section **"Explaining the variables"**. 
 
+
+# Exploratory Data Analysis
+
+To generate a better understanding of the variables used, we plotted a few histograms that visualize the frequency of a range of values for each variable. For visualisation purposes, the variables have to be numeric for now. Besides, main focus should be placed on factor variables (those with multiple levels) for now.
+
+```{r}
+# Visualizations of individual variables -- Gender
+hist(obese_complete_numeric$Gender, xlab = "Gender", main = "Distribution of Gender") 
+```
+
+
+```{r}
+# Visualizations of individual variables -- FAVC
+hist(obese_complete_numeric$FAVC, xlab = "whether a person frequently consumes high caloric foods", main = "Distribution of whether a person frequently consumes high caloric foods")
+```
+
+
+```{r}
+# Visualizations of individual variables -- FCVC
+hist(obese_complete_numeric$FCVC, xlab = "frequency of consuming vegetables", main = "Distribution of frequency of consuming vegetables")
+```
+
+```{r}
+# Visualizations of individual variables -- CAEC
+hist(obese_complete_numeric$CAEC, xlab = "consumption of foods between meals: No, Sometimes, Frequently, Always", main = "Distribution of consumption of foods between meals")
+```
+
+
+```{r}
+# Visualizations of individual variables -- SMOKE
+hist(obese_complete_numeric$SMOKE, xlab = "whether a person smokes", main = "Distribution of whether a person smokes")
+```
+
+```{r}
+# Visualizations of individual variables -- MTRANS
+hist(obese_complete_numeric$MTRANS, xlab = "most used public transport: Automobile, Motorbike, Bike, Public Transportation and Walking", main = "Distribution of a person’s most used public transport")
+```
+
+**So a few takeaways from these histograms: to be written...**
+
 # Correlations
 
-In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. 
+In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. The aim is to see how the variables seem to interact with each other, as well as to find the correlations between them.
 
 **NEEDS FULL WORK, E.G. VISUALIZATIONS OF CORRELATIONS**
+
+In order to make a more readable visualization plot, we first change some column that has long names into a more consise name.
+
+```{r}
+obese_complete_numeric <- rename(obese_complete_numeric, FamilyHist = family_history_with_overweight)
+```
+
+
+```{r}
+corrplot(cor(obese_complete_numeric), 
+         method = "circle",
+         type = "full",
+         tl.pos = "tl",
+         order = "original")
+```
+
+
+```{r}
+# Distribution of variables and correlation between them
+pairs.panels(obese_complete_numeric, density = TRUE, ellipses = TRUE, smooth = FALSE, lm = TRUE)
+```
+
 
 
 # Model Training
@@ -171,10 +281,10 @@ Building a model by trial and error takes a lot of time and working memory. It's
 source("generate_formulas.R")
 ```
 
-```{r}
+```{r, comment=NA}
 # create a vector for all predicting variables except the dependent variable bmi
 
-x_vars <- colnames(obese_complete)
+x_vars <- colnames(obese_complete_numeric)
 x_vars <- x_vars[x_vars != "Bmi"]
 
 # calculate the number of possible models
@@ -190,57 +300,98 @@ Given the assumption for a model containing 4 predicting variables, there are 10
 For example we can use *forward selection*. This method start with no predictors and then iteratively adds the most contributive predictors until there's no significant improvement. 
 **MORE EXPLANATION ABOUT FORWARD SELECTION**
 
-
 ```{r}
 # start building a model by forward selection
-model_forward <- regsubsets(Bmi ~., data = obese_train, 
+forward_selec <- regsubsets(Bmi ~., data = obese_train, 
                                  method = "forward")
 
+summary(forward_selec)
+```
+
+The algorithm used in forward stepwise selection composed a best model consisting of 8 variables. These variables are: **Age, family_history_with_overweight, FAVC, FCVC, CAEC, FAF, CALC** & **MTRANS**.
+
+```{r}
+# Forward Stepwise Selection Model
+model_forward <- lm(Bmi ~ Age + family_history_with_overweight +
+                      FAVC + FCVC + CAEC + FAF + 
+                      CALC + MTRANS, data = obese_train)
 summary(model_forward)
 ```
+
+
 ## Backward Stepwise Selection
 
 Then there is also *backward selection* this method is the complete opposite of *forward selection*. Here the algorithm starts with the complete model and then iteratively starts eliminating the least significant variables until all significant variables remain.
 **MORE EXPLANATION ABOUT BACKWARD SELECTION**
 
 ```{r}
-model_backward <- regsubsets(Bmi ~., data = obese_train, 
+backward_selec <- regsubsets(Bmi ~., data = obese_train, 
                                  method = "backward")
 
-summary(model_forward)
+summary(backward_selec)
 ```
+The algorithm used in backward stepwise selection composed a best model consisting of the same 8 variables. These variables are again: **Age, family_history_with_overweight, FAVC, FCVC, CAEC, FAF, CALC** & **MTRANS**.
+
+```{r}
+# Backward Stepwise Selection Model
+model_backward <- lm(Bmi ~ Age + family_history_with_overweight +
+                      FAVC + FCVC + CAEC + FAF + 
+                      CALC + MTRANS, data = obese_train)
+summary(model_backward)
+```
+
+
 ## LASSO Regression; step-by-step
 
-The final method provided in this assignment is the LASSO regression method. The Least Absolute Shrinkage and Selection Operator is a powerful method since it can handle very large data sets. Furthermore this method avoids overfitting.
+The final method provided in this assignment is the LASSO regression method. The Least Absolute Shrinkage and Selection Operator is a powerful method since it can handle very large data sets. Furthermore this method avoids "overfitting" = following the details of a training data set.
 **MORE EXPLANATION ABOUT LASSO**
 
 ```{r}
-# set up basics for lasso regression
-pred_variables <- model.matrix(Bmi~., bind_rows(obese_train, obese_val))[, -1]
+# specifying 10-fold cross-validation as training method
+cross_train <- trainControl(method="cv", number = 10,
+                            savePredictions = "all")
 
-# find the best lambda for lasso
+# create vector for potential lambda values
+vector_lambda <- 10^seq(5, -5, length = 100)
 
-cv <- cv.glmnet(x = pred_variables, y = c(obese_train$Bmi, obese_val$Bmi), nfolds = 15)
+# build LASSO model using training data and cross-validation
+model_lasso <- train(Bmi ~ ., data = obese_train,
+                     preProcess = c("center", "scale"),
+                     method = "glmnet",
+                     tuneGrid = expand.grid(alpha = 1, lambda = vector_lambda),
+                     trControl = cross_train)
 
-best_lambda <- cv$lambda.min
+# visualize how the log(lambda) affects the RMSE
+plot(log(model_lasso$results$lambda), model_lasso$results$RMSE, 
+     xlab = "log(lambda)",
+     ylab = "RMSE",
+     main = "RMSE value given lambda",
+     xlim = c(-6,2))
+
+# find best lambda value
+best_lambda <- model_lasso$bestTune$lambda
 
 
-# train the lasso model
+# coefficients best model LASSO with lambda
+coef(model_lasso$finalModel, best_lambda)
 
-model_lasso <- glmnet(pred_variables, c(obese_train$Bmi, obese_val$Bmi),
-                      alpha = 1, lambda = best_lambda)
+# visualize the most important predictors
+ggplot(varImp(model_lasso)) + labs(x = "Predictors", y = "Importance", title = "Predictors' influence in the LASSO model") + theme_classic()
 
-coef(model_lasso)
+
+
 
 ```
-
-
-## Dummy Coding
-**needs explanation**
 
 # Model Evaluation & VIF
 
 # Checking Assumptions
+To be able to create a linear model, several assumptions have to met. We will now check for outliers, normality.
+
+## Checking for outliers
+**NEEDS FULL WORK**
+## Normality tests
+**NEEDS FULL WORK**
 
 # Visualizations
 
