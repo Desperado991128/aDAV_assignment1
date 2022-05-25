@@ -357,11 +357,24 @@ For example we can use *forward selection*. This method start with no predictors
 
 
 ```{r, highlight=TRUE, comment=NA}
-# start building a model by forward selection with AIC
-model_forward <- stepAIC(model_all, direction = "forward", trace = FALSE)
-summary(model_forward)
+# set a null predictor model
+model_null <- lm(Bmi ~ 1, data = obese_train)
 
+# start building a model by forward selection with AIC
+model_forward<- stepAIC(model_null, trace = FALSE, direction = "forward", 
+                        scope = list(upper=model_all, lower=model_null))
+
+summary(model_forward)
 ```
+The summary from the forward stepwise selection model shows us the linear model containing the predicting variables that the algorithm selected.<br>
+The algorithm selected the following model:
+$$Bmi = FamilyHistoryWithOverweight + CAEC + FCVC + 
+    CALC + Age + MTRANS + FAVC + FAF + SCC + CH2O + TUE$$
+
+With respect to the parsimony of the model, only the most influential category of the categorical variables will be included in the final model. Moreover, the continuous variable **TUE** will be eliminated from the final model since it's influence for the model is non significant *p>0.05*
+
+Furthermore, this model explains 49.4 percent of the variance of Bmi. 
+
 ## Backward Stepwise Selection
 
 Then there is also *backward selection* this method is the complete opposite of *forward selection*. Here the algorithm starts with the complete model and then iteratively starts eliminating the least significant variables until all significant variables remain. When dealing with a data set where there might be collinearity, this method is preferred over forward selection. Again, we will use the AIC to help us find a more parsimonious model.
@@ -371,6 +384,12 @@ Then there is also *backward selection* this method is the complete opposite of 
 model_backward <- stepAIC(model_all, direction = "backward", trace = FALSE)
 summary(model_backward)
 ```
+The summary from the backward stepwise selection model shows the same predicting variables as the forward stepwise selection model.<br>
+The algorithm again selected the following model:
+$$Bmi = FamilyHistoryWithOverweight + CAEC + FCVC + 
+    CALC + Age + MTRANS + FAVC + FAF + SCC + CH2O + TUE$$
+  
+The backward stepwise selection model will be treated equally as the forward stepwise collection. 
 
 ## LASSO Regression; step-by-step
 
@@ -469,7 +488,7 @@ obese_dummy_test <- subset(obese_dummy_test, select = -c(CALC_Frequently, CALC_n
 ## Model Comparison
 
 At this point we have 4 possible best models. <br>
-The **first** model is contains all variables (14 variables)<br>
+The **first** model is contains all variables (17 variables)<br>
 The **second** model comes from forward stepwise selection (10 variables) <br>
 The **third** model comes from backward stepwise selection (10 variables) <br>
 Finally, the **fourth** model comes from LASSO regression (8 variables)
@@ -499,20 +518,31 @@ Let's now compare the models with respect to the train data. <br>
 # analysis of variance
 anova(model_all, model_forward, model_lasso)
 ```
+When interpreting the output of the ANOVA table, it shows that the full model has the lowest RSS. This means that the full model fits the training data better than the other models since it has the lowest deviations from the data points. Accordingly, we should go with the full model.
 
-```{r}
+```{r, comment=NA}
 # AIC criteria
-AIC(model_all)
-AIC(model_forward)
-AIC(model_lasso)
+AIC_all <- AIC(model_all)
+AIC_forward <- AIC(model_forward)
+AIC_lasso <- AIC(model_lasso)
+
+data.frame(AIC_ALL = AIC_all,
+           AIC_FORWARD = AIC_forward,
+           AIC_LASSO = AIC_lasso)  
 ```
 
-```{r}
+Surprisingly, when comparing the values of the AIC, the full model again has the lowest value. This is remarkable since the AIC punishes for adding variables to a model. However, according to the AIC, we should go with the full model.
+```{r, comment=NA}
 # Explained variance (r-squared)
-summary(model_all)$r.squared
-summary(model_forward)$r.squared
-summary(model_lasso)$r.squared
+r_all <- summary(model_all)$r.squared
+r_forward <- summary(model_forward)$r.squared
+r_lasso <- summary(model_lasso)$r.squared
+
+data.frame(R2_ALL = r_all,
+           R2_FORWARD = r_forward,
+           R2_LASSO = r_lasso)
 ```
+When comparing the R-squared values of the models, the full model has the highest value for R-squared. This means that the full model explains the most variance of Bmi compared to the other models. Thus, according to the value of R-squared, we should go with the full model.
 
 Let's now compare the models with respect to the test data. <br>
 - Which model does the best in predicting Bmi with new data?
@@ -548,7 +578,11 @@ tibble(Method = as_factor(c("All", "Forward", "LASSO")), MSE = mse_pred) %>%
   theme(legend.position = "none") +
   labs(title = "Comparison of test set MSE for different prediction methods") +
   scale_fill_viridis_d() # different colour scale
+```
+<br>
+Even though the differences are hard to observe. When comparing the MSE's of the test data concerning model performance, the full model has the lowest value for MSE. This means that when given new data, the predictions for BMI of the full model come closest to the real observations of BMI. Thus, given the MSE value in the test data, we should again go for the full model.
 
+```{r}
 # plotting R-squared - comparison
 tibble(Method = as_factor(c("All", "Forward", "LASSO")), Rsquared = rsquareds) %>%
   ggplot(aes(x = Method, y = Rsquared, fill = Method)) +
@@ -558,10 +592,13 @@ tibble(Method = as_factor(c("All", "Forward", "LASSO")), Rsquared = rsquareds) %
   labs(title = "Comparison of test set Rsquared for different prediction methods") +
   scale_fill_viridis_d() # different colour scale
   
-
 ```
+<br>
+When comparing the R-squared values in the test data, the differences are again small. However, the full model shows the highest value of R-squared compared to the other models / methods. Concluding, in every comparison, either in the training or test data, the full model comes out as the best model.
 
-**the model with all variables comes out best in every comparison**
+This conclusion is inevitable but also strange. Normally, a model containing all variables leads to problems such as overfitting, high MSE's, high collinearity, bad predictions when dealing with new data, etc. Since this is *not* the case for this data set, we can only conclude that nearly all variables in this data set are meaningful when predicting BMI. 
+
+**Yet**, since we're not interested in a model that contains all variables, we will further elaborate on our second best model: *forward stepwise selection*
 
 # Model Evaluation & VIF
 
