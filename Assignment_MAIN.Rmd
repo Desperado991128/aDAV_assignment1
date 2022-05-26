@@ -205,7 +205,7 @@ Now, let us see the head of the data.
 head(obese_complete) %>% 
   knitr::kable(format = "markdown", digits= 1, padding = 30, align = 'c')
 ```
-From the head and describe function we can tell that the data has loaded as expected and that the datatypes are in line with how we described them in section **"Explaining the variables"**.
+From the head and describe function we can tell that the data has loaded as expected and that the datatypes are in line with how we described them in section "Explaining the variables".
 
 Let's also check the describe function.
 ```{r, comment=NA}
@@ -213,15 +213,14 @@ describe(obese_complete)
 ```
 <br>
 When looking at the descriptions a few variables are remarkable. Most respondents have a family history with being overweight (median = 2.0), are non smokers (SMOKE, median = 1.0), always eat high calorie foods (CALC, median = 4.0) and always eat between meals (CAEC, median = 4.0). These results seem out of bound but due to the synthetic data added to balance the categories, these results are fine.
-
 ```{r}
 
 continuous_variables <- select(obese_complete, -c("Gender", "family_history_with_overweight", "FAVC", "SMOKE", "SCC", "CALC", "CAEC", "MTRANS"))
 # Distribution of numeric variables and correlation between them
 pairs.panels(continuous_variables, density = TRUE, ellipses = TRUE, smooth = FALSE, lm = TRUE)
 ```
-
-**THIS NEEDS DESCRIPTIONS OR NEEDS TO BE REMOVED** 
+<br>
+Also the correlation plot shows the distribution of the numeric variables and the relationships between the variables. Right now, when looking at the within relationships of the numeric variables, we should not have to worry about the presence of multicollinearity in the subset of numeric data.
 
 # Exploratory Data Analysis
 
