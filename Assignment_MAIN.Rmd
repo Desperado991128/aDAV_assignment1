@@ -1,7 +1,7 @@
 ---
 title: "Assignment 1: Analyzing an Obesity dataset"
-author: William Schaafsma, Hau Nguyen, Qingyu Meng
-date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: William Schaafsma, Qingyu Meng, Hau Nguyen, Bénine Karssen
+date: "26-05-2022"
 output: 
   html_document:
        highlight: textmate
@@ -21,33 +21,36 @@ The goal for this assignment is to build a linear model that most accurately pre
 
 We will work in an exploratory manner. Thus, in this assignment we are particularly interested in: *'What predictors show the greatest influence regarding a person's BMI?'*
 
-# Loading packages
+# Loading Packages, Dataset & Set seed
+
+## Import the Packages
 
 The following libraries are required to run this program successfully.
 
 ```{r libraries, echo=TRUE, message=FALSE, warning=FALSE}
-library(ggplot2)
-library(corrplot)
-library(MASS)
-library(dplyr)
-library(knitr)
-library(tidyverse)
-library(mice)
-library(magrittr)
-library(readr)
-library(caret)
-library(leaps)
-library(glmnet)
-library(psych)
-library(fastDummies)
-library(stats)
-library(vcd)
-library(graphics)
-library(olsrr)
+library(ggplot2) # Data visualization
+library(corrplot) # Correlation plot
+library(MASS) # Use of stepAIC()
+library(car) # Use of min-max function
+library(dplyr) # Data manipulation
+library(knitr) # Produce table & structure in RMarkdown style
+library(tidyverse) # # Filtering unnecessary predictors
+library(mice) # Checking for missing values
+library(magrittr) # Pipes
+library(readr) # Loading dataset
+library(caret) # Model evaluation
+library(leaps) # Best subset selection
+library(glmnet) # Model building
+library(psych) # # Use of describe() function and pairplot
+library(fastDummies) # Dummy coding
+library(stats) # Statistical computation
+library(vcd) # Correlation calculation for categorical variables
+library(olsrr) # Model building
+library(MLmetrics) # Calculating MSE
 ```
 
 
-# Loading The Dataset & Set Seed
+## Import The Dataset & Set Seed
 
 First we load the data and set the seed in order to generate a reproducible result.
 
@@ -60,6 +63,8 @@ set.seed(2022)
 ```
 
 # Processing Of The Data
+
+## Preprocessing (Data Manipulation)
 
 We want to include BMI as a dependent/response variable in our model, but we only have the 'Weight' and 'Height' columns in hand. To do this we need to derive BMI from Weight and Height with the formula:  $BMI = Weight / Height^2$
 
@@ -104,8 +109,7 @@ obese_complete$MTRANS <- relevel(obese_complete$MTRANS, ref = "Walking")
 ```
 
 
-
-# Splitting The Data Into Train, Validation & Test
+## Splitting The Data Into Train, Validation & Test
 
 In order to evaluate the performance of the model we will build later on, we have to split the data into three partitions: Train, Test, Validation. The data will be split in a way that ~70% of the data is used for training the model, ~20% for validating the model and ~10% for testing the model.
 
@@ -132,7 +136,9 @@ obese_val <- part_test_val[part_val, ]
 obese_test  <- part_test_val[-part_val, ]
 ```
 
+
 To verify our dataset was normally distributed, we can make a corresponding histogram and density plot.
+
 
 ```{r}
 # Histogram of the Bmi distribution in spliting datasets
@@ -153,7 +159,7 @@ ggplot() +
 
 Each of the plots above are highly overlapping, suggesting that the obese_complete dataset was randomly and normally distributed into the training set, validation set and test set respectively.
 
-# Explaining The Variables
+## Explaining The Variables
 
 **WARNING:** the simulated data created incorrect data. Particularly, it treated categorical data as numeric data and therefore wrongfully imputed these data. However, in this assignment we will treat these data as if they were numeric since converting the datatypes causes loads of parsing errors. This problem affects the following variables: *FCVC, NCP, CH2O, FAF* and *TUE*.
 
@@ -183,9 +189,9 @@ Then there is the categorical variable **CALC** consisting of four categories re
 Finally, there is the categorical variable **MTRANS** consisting of five categories representing a person's most used public transport: Automobile, Motorbike, Bike, Public Transportation and Walking.
 
 
-# Getting To Know The Data
+## Getting To Know The Data
 
-In order to work with a dataset, we need to understand the dataset. First, let's check wether there are missing data in our dataset. To do this we use the `mice` package.
+In order to work with a dataset, we need to understand the dataset. First, let's check whether there are missing data in our dataset. To do this we use the `mice` package.
 
 ```{r, message=FALSE, comment=NA}
 md.pattern(obese_complete, rotate.names = TRUE)
@@ -199,15 +205,27 @@ Now, let us see the head of the data.
 head(obese_complete) %>% 
   knitr::kable(format = "markdown", digits= 1, padding = 30, align = 'c')
 ```
+From the head and describe function we can tell that the data has loaded as expected and that the datatypes are in line with how we described them in section **"Explaining the variables"**.
 
 Let's also check the describe function.
 ```{r, comment=NA}
 describe(obese_complete)
 ```
-From the head and describe function we can tell that the data has loaded as expected and that the datatypes are in line with how we described them in section **"Explaining the variables"**. 
+<br>
+When looking at the descriptions a few variables are remarkable. Most respondents have a family history with being overweight (median = 2.0), are non smokers (SMOKE, median = 1.0), always eat high calorie foods (CALC, median = 4.0) and always eat between meals (CAEC, median = 4.0). These results seem out of bound but due to the synthetic data added to balance the categories, these results are fine.
 
+```{r}
+
+continuous_variables <- select(obese_complete, -c("Gender", "family_history_with_overweight", "FAVC", "SMOKE", "SCC", "CALC", "CAEC", "MTRANS"))
+# Distribution of numeric variables and correlation between them
+pairs.panels(continuous_variables, density = TRUE, ellipses = TRUE, smooth = FALSE, lm = TRUE)
+```
+
+**THIS NEEDS DESCRIPTIONS OR NEEDS TO BE REMOVED** 
 
 # Exploratory Data Analysis
+
+## Bivariate Analysis
 
 Suppose we want to look for a difference in the average Bmi of a person based on the CAEC variable. We are thus looking for a relationship between a continuous and (nominal/ordinal) categorical variable. Therefore, we should make a boxplot to look for this relationship graphically. Same ideas applies for other pairs of such relationships, in which we should also make boxplots to look into the data. Considering the limitation of lengths for this section, we will only explore the following variables pairs: CAEC ~ Bmi, Gender ~ Bmi and MTRANS ~ Bmi.
 
@@ -277,22 +295,17 @@ table(obese_complete$MTRANS)
 From the table we can say the shape for the "MTRANS" variable is highly biased, with majority of data being the type "Public_Transportation", and very few data with the type "Bike".
 
 
-# Correlations
+## Correlations
 
 In this section we will try to look for strong correlations between the predicting variables and our dependent variable BMI. The aim is to see how the variables seem to interact with each other, as well as to find the correlations between them.
 
-To show the overall correlations in our dataset, we use featurePlot() function from the caret package to display a scatterplot matrix.
+We know that if all concerned variables are continuous numerical, we can use Pearson Correlation Coefficient to compute correlations between each pair of them. However, since in our dataset the categorical variables are all nominal (or partially ordinal), we should instead consider another correlation metrics: Cramer’s V. This is used to calculate the correlation between nominal categorical variables.
 
-**NB: as you can see below, the plot is very messy, needs adjusted. In case this is not doable, we should consider cross tabs (the table function) instead, or Cramer's V. Do you have any suggestions?** 
 
 ```{r}
 continuous_variables <- select(obese_complete, -c("Gender", "family_history_with_overweight", "FAVC", "SMOKE", "SCC", "CALC", "CAEC", "MTRANS"))
 categorical_variables <- select(obese_complete, c("Gender", "family_history_with_overweight", "FAVC", "SMOKE", "SCC", "CALC", "CAEC", "MTRANS"))
-
-featurePlot(x = continuous_variables, y = categorical_variables, plot = "pairs")
 ```
-
-We know that if all concerned variables are continuous numerical, we can use Pearson Correlation Coefficient to compute correlations between each pair of them. However, since in our dataset the categorical variables are all nominal (or partially ordinal), we should instead consider another correlation metrics: Cramer’s V. This is used to calculate the correlation between nominal categorical variables.
 
 
 ```{r, comment=NA}
@@ -316,12 +329,7 @@ corrplot(cor(continuous_variables),
 ```
 
 
-```{r}
-# Distribution of numeric variables and correlation between them
-pairs.panels(continuous_variables, density = TRUE, ellipses = TRUE, smooth = FALSE, lm = TRUE)
-```
-
-From these two correlation plots we can see that the numerical variables in the obese_complete dataset only weakly correlates with each other: most of them has indistinctive correlation in pairs, among which the strongest are 'Age ~ Bmi', 'FCVC ~ Bmi' and 'Age ~ TUE'.
+From these correlation plot and table we can see that the numerical variables in the obese_complete dataset only weakly correlates with each other: most of them has indistinctive correlation in pairs, among which the strongest are 'Age ~ Bmi', 'FCVC ~ Bmi' and 'Age ~ TUE'.
 
 # Model Training
 The goal of best subset-selection is to find a small set of variables that most accurately predicts the dependent variable with *new* data. Thus the model should not include all variables, risking overfitting. Well, lets first build a model containing all variables and compare other models later on!
@@ -356,7 +364,7 @@ Given the assumption for a model containing 4 predicting variables, there are 10
 For example we can use *forward selection*. This method start with no predictors and then iteratively adds the most contributive predictors until there's no significant improvement. Forward stepwise selection, is most useful for data sets that contain a lot of variables. We will use the Akiake's Information Criterion(AIC) in order to find a more parsimonious model since the AIC puts a penalty on adding more variables.
 
 
-```{r, highlight=TRUE, comment=NA}
+```{r, comment=NA}
 # set a null predictor model
 model_null <- lm(Bmi ~ 1, data = obese_train)
 
@@ -425,10 +433,6 @@ plot(log(model_lasso$results$lambda), model_lasso$results$RMSE,
 # find best lambda value
 best_lambda <- model_lasso$bestTune$lambda
 log(best_lambda)
-
-
-# coefficients best model LASSO with lambda
-coef(model_lasso$finalModel, best_lambda)
 ```
 
 The LASSO regression method did only shrink the coefficients of *CALCAlways* to zero. Thus, should we build a model on this information, nearly every variable would be included into the best subset selection. However the goal of finding the best model is to find a model that most accurately predicts the outcome variable and also be parsimonious. 
@@ -514,34 +518,60 @@ Let's now compare the models with respect to the train data. <br>
 - What models has the lowest RSS ? <br>
 - What model has the lowest AIC ? <br>
 - What model has the highest R-squared ?
-```{r, comment=NA}
+```{r, comment=NA,}
 # analysis of variance
-anova(model_all, model_forward, model_lasso)
+anova_models <- anova(model_all, model_forward, model_lasso)
+df_anova <- data.frame(Methods = c("All", "Forward", "LASSO"),
+         RSS = c(48368.54, 48554.72, 49046.18))
+
+# plot the ANOVA
+ggplot(df_anova, aes(x=Methods, y=RSS, fill= Methods)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=RSS), color="white", vjust = 1.6, size = 3.5) +
+  theme_classic() + ggtitle("ANOVA comparison for every method") + 
+  theme(plot.title = element_text(hjust = 0.5))
+  
 ```
-When interpreting the output of the ANOVA table, it shows that the full model has the lowest RSS. This means that the full model fits the training data better than the other models since it has the lowest deviations from the data points. Accordingly, we should go with the full model.
+<br>
+When interpreting the output of the figure above, it shows that the full model has the lowest RSS. This means that the full model fits the training data better than the other models since it has the lowest deviations from the data points. Accordingly, we should go with the full model.
 
 ```{r, comment=NA}
 # AIC criteria
-AIC_all <- AIC(model_all)
-AIC_forward <- AIC(model_forward)
-AIC_lasso <- AIC(model_lasso)
+AIC_all <- round(AIC(model_all),2)
+AIC_forward <- round(AIC(model_forward),2)
+AIC_lasso <- round(AIC(model_lasso),2)
 
-data.frame(AIC_ALL = AIC_all,
-           AIC_FORWARD = AIC_forward,
-           AIC_LASSO = AIC_lasso)  
+df_aic <- data.frame(Methods = c("All", "Forward", "LASSO"),
+                     AIC = c(AIC_all, AIC_forward, AIC_lasso)) 
+
+# plot the AIC comparison
+ggplot(df_aic, aes(x=Methods, y=AIC, fill = Methods)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=AIC), color="white", vjust = 1.6, size = 3.5) +
+  theme_classic() + ggtitle("AIC comparison for every method") + 
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Surprisingly, when comparing the values of the AIC, the full model again has the lowest value. This is remarkable since the AIC punishes for adding variables to a model. However, according to the AIC, we should go with the full model.
+<br>
+While the differences are small, when comparing the values of the AIC, the forward model has the lowest value. This is remarkable since the AIC punishes for adding variables to a model, one would expect that the LASSO model would come out best. However, according to the AIC, we should go with the forward model.
 ```{r, comment=NA}
 # Explained variance (r-squared)
-r_all <- summary(model_all)$r.squared
-r_forward <- summary(model_forward)$r.squared
-r_lasso <- summary(model_lasso)$r.squared
+r_all <- round(summary(model_all)$r.squared,4)
+r_forward <- round(summary(model_forward)$r.squared,4)
+r_lasso <- round(summary(model_lasso)$r.squared,4)
 
-data.frame(R2_ALL = r_all,
-           R2_FORWARD = r_forward,
-           R2_LASSO = r_lasso)
+# making a dataframe
+df_r2 <- data.frame(Methods = c("All", "Forward", "LASSO"),
+                    Rsquared = c(r_all, r_forward, r_lasso))
+
+# plotting the comparison of Rsquared
+ggplot(df_r2, aes(x=Methods, y=Rsquared, fill= Methods)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=Rsquared), color="white", vjust = 1.6, size = 3.5) +
+  theme_classic() + ggtitle("Rsquared comparison for every method") + 
+  theme(plot.title = element_text(hjust = 0.5))
 ```
+<br>
 When comparing the R-squared values of the models, the full model has the highest value for R-squared. This means that the full model explains the most variance of Bmi compared to the other models. Thus, according to the value of R-squared, we should go with the full model.
 
 Let's now compare the models with respect to the test data. <br>
@@ -571,22 +601,24 @@ rsquareds <- c(
   R2(predictions_model_lasso,obese_dummy_test$Bmi))
 
 # plotting RMSE - comparison
-tibble(Method = as_factor(c("All", "Forward", "LASSO")), MSE = mse_pred) %>% 
+tibble(Method = as_factor(c("All", "Forward", "LASSO")), MSE = round(mse_pred,3)) %>% 
   ggplot(aes(x = Method, y = MSE, fill = Method)) +
-  geom_bar(stat = "identity", col = "black") + 
+  geom_bar(stat = "identity", col = "black") +
+  geom_text(aes(label=MSE), color="white", vjust = 1.6, size = 3.5)+
   theme_minimal() +
   theme(legend.position = "none") +
   labs(title = "Comparison of test set MSE for different prediction methods") +
   scale_fill_viridis_d() # different colour scale
 ```
 <br>
-Even though the differences are hard to observe. When comparing the MSE's of the test data concerning model performance, the full model has the lowest value for MSE. This means that when given new data, the predictions for BMI of the full model come closest to the real observations of BMI. Thus, given the MSE value in the test data, we should again go for the full model.
+When comparing the MSE's of the test data concerning model performance, the full model has the lowest value for MSE. This means that when given new data, the predictions for BMI of the full model come closest to the real observations of BMI. Thus, given the MSE value in the test data, we should again go for the full model.
 
 ```{r}
 # plotting R-squared - comparison
-tibble(Method = as_factor(c("All", "Forward", "LASSO")), Rsquared = rsquareds) %>%
+tibble(Method = as_factor(c("All", "Forward", "LASSO")), Rsquared = round(rsquareds,3)) %>%
   ggplot(aes(x = Method, y = Rsquared, fill = Method)) +
   geom_bar(stat = "identity", col = "black") +
+  geom_text(aes(label=Rsquared), color="white", vjust = 1.6, size = 3.5) +
   theme_minimal() +
   theme(legend.position = "none") +
   labs(title = "Comparison of test set Rsquared for different prediction methods") +
@@ -594,14 +626,81 @@ tibble(Method = as_factor(c("All", "Forward", "LASSO")), Rsquared = rsquareds) %
   
 ```
 <br>
-When comparing the R-squared values in the test data, the differences are again small. However, the full model shows the highest value of R-squared compared to the other models / methods. Concluding, in every comparison, either in the training or test data, the full model comes out as the best model.
+When comparing the R-squared values in the test data, the differences are again small. However, the full model shows the highest value of R-squared compared to the other models / methods. Concluding, in every comparison, either in the training or test data, the full model comes out as the best model. 
 
 This conclusion is inevitable but also strange. Normally, a model containing all variables leads to problems such as overfitting, high MSE's, high collinearity, bad predictions when dealing with new data, etc. Since this is *not* the case for this data set, we can only conclude that nearly all variables in this data set are meaningful when predicting BMI. 
 
-**Yet**, since we're not interested in a model that contains all variables, we will further elaborate on our second best model: *forward stepwise selection*
+**Note**: Only when comparing the AIC within the train data, the forward model comes out better than the full model.Furthermore, since we're not interested in a model that contains all variables, we will further elaborate on our second best model: *forward stepwise selection*
 
-# Model Evaluation & VIF
+# Model Evaluation
 
+Now let's elaborate on our "best" model, given by **Forward stepwise selection**. 
+```{r, comment=NA}
+# summary model forward
+summary(model_forward)
+```
+All predictors in the forward model are highly significant. Furthermore, the forward model explains 48,5% of the variance in BMI, which is also significant, p < 2.2e-16. 
+
+## VIF
+To make sure there is no multicollinearity in the forward model, we must calculate the Variance Inflation Factor (VIF). The VIF calculates the strength of correlation between the variables in the model. When the VIF exceeds a value of **5** for certain variables, the coefficient estimates and p-values for the forward model will become unreliable.
+
+```{r}
+# visualize the vif values
+vif_model <- vif(model_forward)
+
+df_vif <- data.frame(Predictors = c("Age", "Family", "FAVC",
+                                    "FCVC", "CAEC", "FAF",
+                                    "CALC", "MTRANS", "SCC", "CH2O"),
+                            VIF = c(1.6004, 1.1857, 1.1164, 1.0309,
+                                   1.1346, 1.1217, 1.0791, 1.5267,
+                                   1.1034, 1.0952))
+
+ggplot(df_vif, aes(x=Predictors, y=VIF, fill = Predictors)) + 
+  geom_bar(stat="identity") +
+  geom_text(aes(label=VIF), color="black", vjust = 1.6, size = 3.5) +
+  theme_classic() + ggtitle("VIF values for every predictor") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+<br>
+The forward model has no problem with multicollinearity for it's predicting variables, as visualized in the figure above.
+
+## Test-Performance
+But then, what about outside training data performance?<br>
+Specifically, how well does the forward model deal with new information?
+
+```{r, comment=NA}
+# store predictions of the foward model given new data
+pred_bmi <- predict(model_forward, newdata = obese_dummy_test)
+
+# make a dataframe for the true values in test and the predicted values
+true_predicted <- data.frame(True_value = obese_dummy_test$Bmi,
+                             Pred_value = pred_bmi)
+# plot this relationship
+ggplot(true_predicted, aes(x=Pred_value, y=True_value)) +
+  geom_point() + geom_smooth(method=lm, se=FALSE) +
+  labs(x = "Predicted Values", y="True Values") +
+  ggtitle("The Relationship Between The True Values & The Predicted Values") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+<br>
+The correlation between the actual values in the test data and the predicted values from the forward model is nearly 73%. This does not resound the model accuracy perfectly, but this correlation rather represents the similarity of the movement. 
+
+```{r}
+# now let's look at the correlations between those values, representing the accuracy
+cor(true_predicted)
+```
+
+Finally, let's look at the Min_Max accuracy. A perfect model would have a Min_Max accuracy of 1.0, the further away from 1.0 the further away the predicted values are from the true values.
+
+```{r, comment=NA}
+min_max_performance <- mean(apply(true_predicted, 1, min) / apply(true_predicted, 1, max))
+round(min_max_performance, 2)
+```
+<br>
+The value for Min_Max accuracy is 0.86, thus the accuracy in which the forward model predicts the BMI of new cases is ~86%.
 
 # Checking Assumptions
 
@@ -638,34 +737,55 @@ diagRegressionPlots <- function(regression.obj, cex=1)
 diagRegressionPlots(model_forward)
 ```
 
-## linearity
+## Checking for linearity
+
+For the linearity assumption of linear regression, the relationship between X and the mean of Y should be linear. It is tested with the residuals vs. fitted plot. If the residuals are evenly distributed along a horizontal line with no apparent patterns (the red line is approximately horizontal at zero), that is a good indication of a linear relationship.
 
 ```{r}
 plot(model_forward, 1)
 ```
 
-interpretation: our model is curved but it doesn't diverge from a horizontal line very much -> still linear
+*Interpretation:*
+  
+In the Residuals vs. Fitted plot we see a slight curve in residuals. Most of the residuals are equally spread around the horizontal line without any distinct patterns. There seems to be a deviation from the rest of the residuals for lower fitter values, indicating possible outliers. Even though there's a deviation for lower fitted values, there are no extreme deviations. Hence the linearity assumption is not violated.
 
 ## Checking whether the predictor matrix is full rank
+
+The predictor matrix is full rank when there are more rows than columns in a dataset. 
 
 ```{r}
 dim(obese_dummy_train)
 ```
 
-The dataset contains 1479 rows and 15 columns. Hence, the assumption of the predictor matrix to be full rank is satisfied. Moreover, the predictors are not linear combinations of other predictors.
+*Interpretation:*
 
-## Heteroscedasticity
+The dataset contains 1479 rows and 15 columns. This means the assumption of the predictor matrix to be full rank is satisfied. Moreover, the predictors are not linear combinations of other predictors.
+
+## Checking for homoscedasticity
+
+For the homoscedasticity assumption, the residual variance should be the same for every value of X in the model. Non-constant error variance means that there is heteroscedasticity. The scale-location plot is used to check the homoscedasticity of residuals (equal variance of residuals). The assumption is met if the residuals are randomly scattered and show a horizontal line with equal (random) scatter points.
 
 ```{r}
 plot(model_forward, 3)
 ```
-no obvious trend, distributed on both sides of the red line, red line is quite flat
 
-## Normality
+The residuals are random and reasonably evenly distributed. The red line is relatively flat, which corresponds to constant error variance. Since there is no clear trend in the current data, the assumption is met.
+
+## Checking if the errors are normally distributed
+
+The normality assumption is important for prediction because prediction intervals require normally distributed errors. The normal Q-Q plot is used to check if the residuals are normally distributed for the normality assumption. If the majority of the residuals follow the straight dotted line, the assumption is met. Besides the normal Q-Q plot, we also take a look at the histogram of the model to check this assumption.
 
 ```{r}
 plot(model_forward, 2)
+```
 
+*Interpretation:*
+
+After estimating the normal distribution from the regression model, a normal Q-Q plot was derived. Both the lower and upper ends deviate slightly from the dotted line.
+
+To better visualize the distribution of the errors, we also analyze the histogram of the model. 
+
+```{r full-model-histogram}
 ggplot(data = obese_train, aes(x = model_forward$residuals)) +
   geom_histogram(aes(y= ..density..), col = 'black', fill = 'steelblue', bins = 60) +
   stat_function(fun = dnorm, 
@@ -673,36 +793,203 @@ ggplot(data = obese_train, aes(x = model_forward$residuals)) +
                                         sd = sd(model_forward$residuals)),
                 col = "red",
                 size = 1)
-
-mean(model_forward$residuals)
-median(model_forward$residuals)
 ```
 
+*Interpretation:* 
 
-Slight left skew , but still quite normally distributed
+In the histogram we can observe that there is a very slight left skew in our data. However, the skewness is close to zero, and the distribution shape of our data mostly overlaps with the red reference line (which represents for perfect normal distribution). The distributions of the residuals seem to be moderate in breadth.
 
-The distribution shape of our data mostly overlaps with the red reference line, which represents for perfect normal distribution
+Based on the normal Q-Q plot and the histogram, we can say that the normality assumption is met.
 
-## Checking Influential observations and outliers
+## Checking influential observations and outliers
+
+Influential observations are observations in the dataset that, when removed, dramatically change the coefficient estimates of the regression model. Therefore, we will look at the data and see if we have any influential observations.
 
 ```{r}
 plot(rstudent(model_forward))
 plot(hatvalues(model_forward))
-(maxDs2 <- sort(hatvalues(model_forward)) %>% names() %>% tail(10) %>% as.numeric())
+(maxDs1 <- sort(rstudent(model_forward)) %>% names() %>% tail(2) %>% as.numeric())
+(maxDs2 <- sort(hatvalues(model_forward)) %>% names() %>% tail(3) %>% as.numeric())
 ```
 
-no obvious outliers
+*Interpretation:*
+
+From the RStudent plot, it can be deducted that there are no observations that clearly stand out from the crowd. However, according to the rule of thumb, points above 3.0 level are flagged as possible outliers. The corresponding observations are 161 and 246 which means that 2 possible outliers are detected. However, as the variation in the data is big, these observations are not seen as "standing out from the crowd". There is no clear distinction between these two observations that have a value >3 and the other observations. Due to that, these cases are not excluded. 
+
+For the leverage plot (hatvalues), there are three points that are noticeably different from the rest, which means they could be high-leverage points. By sorting the data with the three highest hatvalues, observations 170, 69, and 96 are obtained.
+
+To see whether removing the three highest hatvalue observations has a positive influence on the leverage plot, the plot with and without these three observations are compared. 
 
 ```{r}
-cd <- cooks.distance(model_forward)
-plot(cd)
-(maxDs <- sort(cd) %>% names() %>% tail(1) %>% as.numeric())
+# Remove the possible high-leverage observations 170, 69, and 96.
+obese_dummy_train_1 <- obese_dummy_train[-maxDs2, ]
+
+model_forward_1 <- lm(Bmi ~ Age + family_history_with_overweight +
+                      FAVC + FCVC + CAEC_Frequently + FAF +
+                      CALC_Sometimes + MTRANS_Public_Transportation +
+                      SCC + CH2O, data = obese_dummy_train_1)
+
+plot(hatvalues(model_forward_1))
 ```
 
-# Visualizations
+*Interpretation:*
+
+As we can see in the new leverage plot, no problematic leverage values are seen anymore. To see whether removing the three highest hatvalue observations has a positive influence on the model fit, the model with and the model without these five observations are compared.
+
+```{r}
+r1 <- summary(model_forward)$r.squared
+r2 <- summary(model_forward_1)$r.squared
+
+aic1 <- AIC(model_forward)
+aic2 <- AIC(model_forward_1)
+
+mse1 <- MSE(y_pred = predict(model_forward), y_true = obese_dummy_train$Bmi)
+mse2 <- MSE(y_pred = predict(model_forward_1), y_true = obese_dummy_train_1$Bmi)
+
+# Combining the outputs of R-Squared, AIC and MSE into a table for Model 1 and 2
+rsquared_bind <- rbind(r1, r2)
+aic_bind <- rbind(aic1, aic2)
+mse_bind <- rbind(mse1, mse2)
+table_all <- cbind.data.frame(rsquared_bind, aic_bind, mse_bind)
+colnames(table_all) = c("R-Squared", "AIC", "MSE") 
+rownames(table_all) = c("Model 1", "Model 2") 
+table_all
+```
+
+After estimating both models, the R-squared for Model 1 is 0.4852923, whereas the R-squared for the Model 2 is 0.4904765 This suggests that deleting these three observations leads to a slightly higher amount of explained variation.
+
+The AIC of Model 1 is higher than the AIC of Model 2, with the values 9384.890 vs. 9351.779, respectively. 
+
+Finally, the results show that the MSE for Model 1 is higher than the MSE of Model 2, with the values 32.51679 vs. 32.51679.
+
+The comparisons suggest that Model 2, where three observations are deleted, makes a better model since the R-squared improves and the AIC and MSE decrease. Therefore, we will use Model 2. 
+
+To confirm these results, we apply measures of influence to account for both extremities for the x and the y axis.
+
+### Cook's Distance
+
+There are two measures of influence. The first method used is a global measure of influence identified by the Cook's Distance.
+
+```{r}
+cd <- cooks.distance(model_forward_1)
+plot(cd)
+(maxDs3 <- which.max(cd))
+```
+
+*Interpretation:*
+
+In the Cook's Distance plot, one point is noticeably different from the rest, observation number 159. This observation negatively affects the regression model, which means it is a influential outlier. 
+
+```{r}
+# Remove the possible high-leverage observations 159.
+obese_dummy_train_2 <- obese_dummy_train_1[-maxDs3, ]
+
+model_forward_2 <- lm(Bmi ~ Age + family_history_with_overweight +
+                      FAVC + FCVC + CAEC_Frequently + FAF +
+                      CALC_Sometimes + MTRANS_Public_Transportation +
+                      SCC + CH2O, data = obese_dummy_train_2)
+
+cd1 <- cooks.distance(model_forward_2)
+plot(cd1)
+```
+
+*Interpretation:*
+
+After deleting observation 159, we analyzed the new Cook's Distance plot. Now there are no data points that really distinguish themselves from the other data points. 
+
+To see whether removing this observation improved the model fit, we compare the model with and without this observation.
+
+```{r}
+r3 <- summary(model_forward_2)$r.squared
+aic3 <- AIC(model_forward_2)
+mse3 <- MSE(y_pred = predict(model_forward_2), y_true = obese_dummy_train_2$Bmi)
+
+# Combining the outputs of R-Squared, AIC and MSE into a table for Model 1, 2, and 3
+rsquared_bind <- rbind(r1, r2, r3)
+aic_bind <- rbind(aic1, aic2, aic3)
+mse_bind <- rbind(mse1, mse2, mse3)
+table_all_1 <- cbind.data.frame(rsquared_bind, aic_bind, mse_bind)
+colnames(table_all_1) = c("R-Squared", "AIC", "MSE") 
+rownames(table_all_1) = c("Model 1", "Model 2", "Model 3") 
+table_all_1
+```
+
+*Interpretation:*
+
+After estimating the three models, the R-squared for Model 3 is the highest R-squared with 0.4944516, compared to 0.4852923 for Model 1 and 0.4904765 for Model 2. This suggests that deleting the observation leads to the best model with the most explained variation.
+
+The AIC of Model 3 is the lowest with 9334.646, compared to 9384.890 for Model 1 and 9351.779 for Model 2.
+
+Finally, the MSE of Model 3 is the lowest with 32.27928, compared to 32.82943 for Model 1 and 32.51679 for Model 2.
+
+The comparisons suggest that the model again improves when deleting the observation, as the R-squared increases and both the AIC and MSE decrease. Therefore, we delete this observation from the dataset as well.
+
+### DFBETAS
+
+The second method to measure influence is a coefficient-specific measure of the influence analyzed with DFBETAS.
+
+```{r dfbetas}
+dfb <- dfbetas(model_forward_2)
+dfb_intercept <- plot(dfb[ , 1], main = "Intercept")
+dfb_slope <- plot(dfb[ , 2], main = "Slope")
+```
+
+*Interpretation:*
+
+For the DFBETAS Intercept plot, there are no points that are "standing out from the crowd." Besides, the estimation value of the intercept does not apply to the current study. Therefore, we do not remove any of these observations.
+
+There are also no data points distinguishable from the rest for the slope plot. In conclusion, looking at the DFbetas plots, no observation needs to be removed. 
+
 
 # Answering Research Question
 
+The research question for this assignment was ‘What predictors show the greatest influence regarding a person’s BMI?’. Algorithms were used like lasso regression and forward and backward selection to create several models using the predictors from the training data. These models were separately tested on fit to the test data. The best fitting model was a model using all variables, having the best ANOVA results, lowest MSE and highest Rsquared. As we do not want to use all variables the second best fitting model was used (which had the lowest AIC), with a difference in degrees of freedom of 7. This model was created by forward selection and is identical to the backwards selection model. The final model was checked on assumptions and used to create visualizations of the data and model. 
+
+The following predictors were used, sorted on most to least relevant: 
+(1) Family history with overweight
+(2) Frequency consuming food between meals
+(3) Frequency of consuming vegetables
+(4) Alcohol intake
+(5) Age
+(6) Most used transport
+(7) Frequency of consuming high calorie food
+(8) Frequency of physical activity
+(9) Calorie checking
+(10) Amounts of water drunk
+
 # Discussion & Limitations
 
+The obesity dataset of Palechor & Monatas (2019) gave several models after use of algorithms to predict a person’s BMI. Because the best predicting model used all variables a less complex model was used to filter out the best predictors. Best predicting variables were picked by use of a forward selection algorithm. 
 
+The best fitting model was not used as it made use of all possible variables as our goal was to find the best predictors, using the elaborative model would not fit. However, the first model is still best to predict a person’s BMI according to the runnen tests, so should be used to predict the BMI.
+
+Furthermore, the individual-level data is limited due to this incorrect artificially created data. The dummy variables representing categorical data had floating digits in the artificially created data, which is not possible for dummy variables. Nevertheless, the synthetic data is still representative on a macro-level, but not on an individual level. 
+However the artificial data is incorrect on microlevel, the data balances the representation of categories. This is very important to prevent training alortigms to only predict the well represented categories correctly. Therefore the use of the dataset containing artificial data is justified. 
+
+A limitation of our research is that the data was collected in Latin American countries, it does not represent the average population. The found predictors in this research are the biggest predictors for BMI in Latin American countries. Further research needs to be done to prove the predicting value of these variables in different cultures.
+
+# Task Division
+
+**William Schaafsma** (1705318)<br>
+- 1. Introduction and Research Question<br>
+- 2. Loading Packages, Dataset & Set seed<br>
+- 3.1 Preprocessing (Data Manipulation), 3.2 Splitting The Data Into Train, Validation & Test,<br>
+- 3.3 Explaining The Variables.<br>
+- 5. Model Training<br>
+- 6. Model Evaluation<br>
+
+**Hau Nguyen** (6510841)<br>
+- 2. Loading Packages<br>
+- 4. Exploratory Data Analysis<br>
+- 7. Checking Assumptions<br>
+
+**Qingyu Meng** (7099703)<br>
+- 2. Loading Packages<br>
+- 3.1 Preprocessing (Data Manipulation), 3.2 Splitting The Data Into Train, Validation & Test<br>
+- 4. Exploratory Data Analysis<br>
+- 7. Checking Assumptions<br>
+
+**Bénine Karssen** (unknown)<br>
+- 3.4 Getting To Know The Data<br>
+- 8. Answering Research Question<br>
+- 9. Discussion & Limitations<br>
