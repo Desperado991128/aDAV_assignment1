@@ -988,7 +988,7 @@ A limitation of our research is that the data was collected in Latin American co
 - 4. Exploratory Data Analysis<br>
 - 7. Checking Assumptions<br>
 
-**Bénine Karssen** (unknown)<br>
+**Bénine Karssen** (6475582)<br>
 - 3.4 Getting To Know The Data<br>
 - 8. Answering Research Question<br>
 - 9. Discussion & Limitations<br>
