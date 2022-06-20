@@ -30,51 +30,47 @@ library(glmnet)
 # load dataset
 ```{r}
 spotify <- read_csv("datasets assignment 2/datasets assignment 2/Spotify-2000.csv")
-View(spotify)
 ```
 
-# explore and descriptives
-```{r}
-hist(spotify$Popularity)
-```
-
-# make a categorical of popularity
-```{r}
-summary(spotify$Popularity)
-```
-
+# make danceability categorical
 ```{r}
 spotify <- spotify %>% mutate(
-  Popularity.factor = 
-    Popularity %>% 
-    cut(breaks = c(11, 47, 60, 70, 100), include.lowest = TRUE) %>% 
+  Danceability.factor = 
+    Danceability %>% 
+    cut(breaks = c(10, 42, 52, 65, 96), include.lowest = TRUE) %>% 
     fct_recode(
-      "low" = "[11,47]",
-      "moderate" = "(47,60]",
-      "high" = "(60,70]",
-      "amazing" = "(70,100]")
+      "low" = "[10,42]",
+      "moderate" = "(42,52]",
+      "high" = "(52,65]",
+      "super" = "(65,96]")
     
 )
 ```
 
+# delete index, title , artist from dataset
+```{r}
+spotify <- subset(spotify, select = -c(Index, Title, Artist))
+```
 
-# test kNN algorithm on genre variable
+# split data into train and test and set seed
 ```{r}
 set.seed(12345)
 
 # data partition
-indxTrain <- createDataPartition(y = spotify$Popularity.factor,p = 0.75,list = FALSE)
+indxTrain <- createDataPartition(y = spotify$Popularity,p = 0.75,list = FALSE)
 training <- spotify[indxTrain,]
 testing <- spotify[-indxTrain,]
 
-# data subsetting
-training <- subset(spotify, select = -c(Index, Title, Artist, Year, Popularity, `Top Genre`))
-testing <- subset(spotify, select = -c(Index, Title, Artist, Year, Popularity, `Top Genre`))
+```
+
+
+# Run kNN for danceability with CV to get best k
+```{r}
 
 # run kNN
 
 ctrl <- trainControl(method="repeatedcv",repeats = 3)
-knnFit <- train(Popularity.factor~ ., data = training, 
+knnFit <- train(Danceability.factor ~ . - Danceability - `Top Genre` - Year, data = training, 
                 method = "knn", 
                 trControl = ctrl, 
                 preProcess = c("center","scale"),
@@ -84,88 +80,46 @@ plot(knnFit)
 knnFit$bestTune
 ```
 
+# Run kNN with best K that came from CV
 ```{r}
-# create knn with k = 25
+# create knn with k = 31
 
-knn_25 <- knn(train = training %>% dplyr::select(-Popularity.factor),
-              test = testing %>% dplyr::select(-Popularity.factor),
-              cl = as_factor(training$Popularity.factor),
+knn_31 <- knn(train = training %>% 
+                dplyr::select(-Danceability.factor, -Danceability, -Year, -`Top Genre`),
+              test = testing %>% 
+                dplyr::select(-Danceability.factor, -Danceability, -Year, -`Top Genre`),
+              cl = as_factor(training$Danceability.factor),
               k = 25)
 
 
-matrix_25 <- confusionMatrix(knn_25, reference = testing$Popularity.factor)
+matrix_25 <- confusionMatrix(knn_31, reference = testing$Danceability.factor)
 matrix_25
 ```
-
+# plot for true values
 ```{r}
-# make a plot
 testing %>% 
-  arrange(Popularity.factor) %>% 
-  ggplot(aes(x = Energy, y = Danceability, colour = Popularity.factor)) +
+  arrange(Danceability.factor) %>% 
+  ggplot(aes(x = Energy, y = Popularity, colour = Danceability.factor)) +
   geom_point(size = 1.3) + 
   scale_colour_viridis_d() +
   theme_minimal() +
   labs(title = "True class")
 ```
 
+# plot for predicted values with kNN for danceability
 ```{r}
 # make another plot
-bind_cols(testing, pred = knn_25) %>% 
-  arrange(Popularity.factor) %>% 
-  ggplot(aes(x = Energy, y = Danceability, colour = pred)) +
+bind_cols(testing, pred = knn_31) %>% 
+  arrange(Danceability.factor) %>% 
+  ggplot(aes(x = Energy, y = Popularity, colour = pred)) +
   geom_point(size = 1.3) + 
   scale_colour_viridis_d() +
   theme_minimal() +
-  labs(title = "Predicted class (25nn)")
+  labs(title = "Predicted class (31nn)")
 ```
 
 
 
 
 
-
-
-
-
-```{r}
-spotify1 <- subset(spotify, select = -c(Index, Year, Title, Artist, `Top Genre`, Popularity.factor))
-```
-
-```{r}
-lm_model <- lm(Popularity ~ ., data = spotify1)
-summary(lm_model)
-```
-```{r}
-# specifying 10-fold cross-validation as training method
-cross_train <- trainControl(method="cv", number = 10,
-                            savePredictions = "all")
-
-
-# create vector for potential lambda values
-vector_lambda <- 10^seq(5, -5, length = 100)
-
-
-# build LASSO model using training data and cross-validation
-model_lasso <- train(Popularity ~ ., data = spotify1,
-                     preProcess = c("center", "scale"),
-                     method = "glmnet",
-                     tuneGrid = expand.grid(alpha = 1, lambda = vector_lambda),
-                     trControl = cross_train)
-
-
-# visualize how the log(lambda) affects the RMSE
-plot(log(model_lasso$results$lambda), model_lasso$results$RMSE, 
-     xlab = "log(lambda)",
-     ylab = "RMSE",
-     main = "RMSE value given lambda",
-     xlim = c(-6,2))
-```
-
-```{r}
-best_lambda <- model_lasso$bestTune$lambda
-log(best_lambda)
-```
-```{r}
-ggplot(varImp(model_lasso)) + labs(x = "Predictors", y = "Importance", title = "Predictors' influence in the LASSO model") + theme_classic()
-```
 
